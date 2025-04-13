@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GMIS Teacher Dashboard – Academic + SEL</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+    header { text-align: center; margin-bottom: 20px; }
+    .dashboard { max-width: 1100px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 8px rgba(0,0,0,0.1); }
+    canvas { max-width: 100%; margin-bottom: 30px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { padding: 10px; border: 1px solid #ddd; text-align: center; }
+    th { background: #00539C; color: white; }
+    input[type='number'] { width: 60px; }
+    .tooltip { font-size: 12px; color: #555; }
+    .note { background: #eef6ff; padding: 10px; margin-bottom: 15px; font-size: 14px; border-left: 4px solid #0077cc; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>GMIS Teacher Dashboard – Academic & SEL Progress</h1>
+  <p>Tracks progress in English (8700), Math (8300), Science (8464), and Business. Includes SEL Bands.</p>
+</header>
+
+<div class="dashboard">
+
+  <div class="note">
+    <strong>What this tracks:</strong><br>
+    ✅ English, Math, Science, Business (Exam-based assessments only)<br>
+    ✅ Weekly scores (normalized to /40), personal goal editing<br>
+    ✅ SEL score out of 5, based on weekly check-in + teacher notes<br>
+    ❌ Coursework, speaking, arts not yet tracked unless manually entered.
+  </div>
+
+  <label>Select Student:
+    <select id="studentSelect" onchange="updateCharts()">
+      <option value="101">Harry Potter</option>
+      <option value="102">Hermione Granger</option>
+      <option value="103">Ron Weasley</option>
+      <option value="104">Luna Lovegood</option>
+      <option value="105">Draco Malfoy</option>
+    </select>
+  </label>
+
+  <label style="margin-left:20px;">
+    Target Goal (/40):
+    <input type="number" id="goalInput" value="30" min="0" max="40" onchange="updateCharts()" />
+  </label>
+  <span class="tooltip" title="This is the end-of-year target score the student is expected or hoped to reach.">ℹ️</span>
+
+  <canvas id="academicChart" height="120"></canvas>
+  <canvas id="selChart" height="120"></canvas>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Week</th>
+        <th>Subject</th>
+        <th>Score (/40)</th>
+        <th>SEL (/5)</th>
+        <th>Grade</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="dataRows"></tbody>
+  </table>
+</div>
+
+<script>
+const sampleData = {
+  "101": [
+    { week: 1, subject: "English", score: 22, sel: 3.8, grade: "5" },
+    { week: 2, subject: "Science", score: 25, sel: 4.0, grade: "6" },
+    { week: 3, subject: "Business", score: 20, sel: 3.2, grade: "5" },
+    { week: 4, subject: "Math", score: 18, sel: 2.9, grade: "4" }
+  ],
+  "102": [
+    { week: 1, subject: "English", score: 35, sel: 4.5, grade: "8" },
+    { week: 2, subject: "Math", score: 36, sel: 4.7, grade: "9" }
+  ],
+  "103": [
+    { week: 1, subject: "Science", score: 28, sel: 3.5, grade: "6" },
+    { week: 2, subject: "English", score: 26, sel: 3.8, grade: "6" }
+  ],
+  "104": [
+    { week: 1, subject: "Math", score: 32, sel: 4.8, grade: "8" },
+    { week: 2, subject: "Business", score: 34, sel: 4.6, grade: "9" }
+  ],
+  "105": [
+    { week: 1, subject: "Science", score: 24, sel: 2.5, grade: "5" },
+    { week: 2, subject: "English", score: 26, sel: 2.9, grade: "6" }
+  ]
+};
+
+let academicChart, selChart;
+
+function updateCharts() {
+  const id = document.getElementById("studentSelect").value;
+  const data = sampleData[id] || [];
+  const goal = parseInt(document.getElementById("goalInput").value);
+  const weeks = data.map(d => "Week " + d.week);
+  const scores = data.map(d => d.score);
+  const selScores = data.map(d => d.sel);
+
+  const goalLine = data.map(() => goal);
+  const status = data.map(d => {
+    if (d.score >= goal) return "🟢 On Track";
+    else if (d.score >= goal - 3) return "🟡 Slightly Behind";
+    else return "🔴 Needs Support";
+  });
+
+  document.getElementById("dataRows").innerHTML = data.map((d, i) => `
+    <tr>
+      <td>Week ${d.week}</td>
+      <td>${d.subject}</td>
+      <td>${d.score}</td>
+      <td>${d.sel}</td>
+      <td>${d.grade}</td>
+      <td>${status[i]}</td>
+    </tr>
+  `).join("");
+
+  if (academicChart) academicChart.destroy();
+  academicChart = new Chart(document.getElementById("academicChart"), {
+    type: 'line',
+    data: {
+      labels: weeks,
+      datasets: [
+        { label: "Actual Score", data: scores, borderColor: "#0077cc", fill: false },
+        { label: "Target Goal", data: goalLine, borderColor: "#00cc66", borderDash: [5,5], fill: false }
+      ]
+    },
+    options: {
+      plugins: {
+        title: { display: true, text: "Academic Progress (/40)" },
+        tooltip: {
+          callbacks: {
+            label: (context) => {
+              const val = context.raw;
+              return `Score: ${val} / 40`;
+            }
+          }
+        }
+      },
+      scales: { y: { beginAtZero: true, max: 40 } }
+    }
+  });
+
+  if (selChart) selChart.destroy();
+  selChart = new Chart(document.getElementById("selChart"), {
+    type: 'line',
+    data: {
+      labels: weeks,
+      datasets: [
+        { label: "Mood & Engagement (SEL)", data: selScores, borderColor: "#ff9933", fill: false }
+      ]
+    },
+    options: {
+      plugins: {
+        title: { display: true, text: "Social Emotional Learning Progress (/5)" },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `SEL Score: ${ctx.raw} / 5`
+          }
+        }
+      },
+      scales: { y: { beginAtZero: true, max: 5 } }
+    }
+  });
+}
+
+updateCharts();
+</script>
+
+</body>
+</html>
